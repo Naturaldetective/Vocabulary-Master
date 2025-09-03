@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # MongoDB服务
+  mongo:
+    image: hub.rat.dev/library/mongo:8.0
+    container_name: vocab-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: vocabulary
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - vocab-network
+
+  # 后端Node.js服务
+  backend:
+    build:
+      context: ./backend
+    container_name: vocab-backend
+    restart: always
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vocabulary
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    networks:
+      - vocab-network
+
+  # 前端Nginx服务
+  frontend:
+    build:
+      context: ./frontend
+    container_name: vocab-frontend
+    restart: always
+    ports:
+      - "8443:80"
+    depends_on:
+      - backend
+    networks:
+      - vocab-network
+
+# 数据卷，用于持久化MongoDB数据
+volumes:
+  mongo-data:
+
+# 网络配置
+networks:
+  vocab-network:
+    driver: bridge
+

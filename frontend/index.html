@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Master</title>
+    <!-- 引入外部资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        danger: '#EF4444',
+                        neutral: '#6B7280'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .word-card {
+                @apply bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow duration-300;
+            }
+            .btn {
+                @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90;
+            }
+            .btn-danger {
+                @apply bg-danger text-white hover:bg-danger/90;
+            }
+            .form-input {
+                @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <!-- 页面标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold text-gray-800 mb-3">
+                <i class="fa fa-language text-primary mr-3"></i>Vocabulary Master
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                Build your vocabulary collection and improve your language skills
+            </p>
+        </header>
+
+        <!-- 功能区 -->
+        <div class="mb-8 flex flex-col sm:flex-row gap-4">
+            <!-- 搜索框 -->
+            <div class="relative flex-grow">
+                <input 
+                    type="text" 
+                    id="searchInput"
+                    placeholder="Search words..." 
+                    class="form-input pl-10"
+                >
+                <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            </div>
+            
+            <!-- 添加按钮 -->
+            <button id="addButton" class="btn btn-primary whitespace-nowrap">
+                <i class="fa fa-plus-circle mr-2"></i>Add New Word
+            </button>
+        </div>
+
+        <!-- 单词列表容器 -->
+        <div id="wordContainer" class="space-y-4">
+            <!-- 加载状态 -->
+            <div id="loadingState" class="text-center py-16">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                <p class="text-gray-500">Loading your vocabulary...</p>
+            </div>
+            
+            <!-- 空状态 -->
+            <div id="emptyState" class="hidden text-center py-16">
+                <i class="fa fa-book text-6xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500 text-lg">No words in your collection yet</p>
+                <button id="emptyAddButton" class="mt-4 btn btn-primary">
+                    <i class="fa fa-plus mr-2"></i>Add Your First Word
+                </button>
+            </div>
+            
+            <!-- 错误状态 -->
+            <div id="errorState" class="hidden text-center py-16">
+                <i class="fa fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                <p class="text-gray-500 text-lg mb-4">Failed to load vocabulary</p>
+                <button id="retryButton" class="btn btn-primary">
+                    <i class="fa fa-refresh mr-2"></i>Try Again
+                </button>
+            </div>
+            
+            <!-- 单词列表 -->
+            <div id="wordList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <!-- 添加单词模态框 -->
+    <div id="addModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 transform scale-95 transition-transform duration-300">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
+                    <i class="fa fa-plus text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Add New Word</h3>
+                <p class="text-gray-600 mt-2">Enter the details for your new vocabulary word</p>
+            </div>
+            
+            <!-- 添加单词表单 -->
+            <form id="addWordForm" class="space-y-4">
+                <div>
+                    <label for="wordInput" class="block text-sm font-medium text-gray-700 mb-1">Word</label>
+                    <input 
+                        type="text" 
+                        id="wordInput" 
+                        class="form-input"
+                        placeholder="Enter the word"
+                        required
+                    >
+                    <p class="hidden text-red-500 text-sm mt-1" id="wordError">Please enter a word</p>
+                </div>
+                
+                <div>
+                    <label for="definitionInput" class="block text-sm font-medium text-gray-700 mb-1">Definition</label>
+                    <textarea 
+                        id="definitionInput" 
+                        class="form-input min-h-[100px]"
+                        placeholder="Enter the definition"
+                        required
+                    ></textarea>
+                    <p class="hidden text-red-500 text-sm mt-1" id="definitionError">Please enter a definition</p>
+                </div>
+                
+                <div>
+                    <label for="categoryInput" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <input 
+                        type="text" 
+                        id="categoryInput" 
+                        class="form-input"
+                        placeholder="e.g. noun, verb, adjective"
+                    >
+                </div>
+                
+                <div class="flex gap-3 mt-6">
+                    <button type="button" id="cancelAdd" class="flex-1 btn border border-gray-300 text-gray-700 hover:bg-gray-100">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 btn btn-primary">
+                        Add Word
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div id="deleteModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 transform scale-95 transition-transform duration-300">
+            <div class="text-center mb-4">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-danger/10 text-danger mb-4">
+                    <i class="fa fa-trash text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Delete Word?</h3>
+                <p class="text-gray-600 mt-2">Are you sure you want to remove this word from your collection?</p>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button id="cancelDelete" class="flex-1 btn border border-gray-300 text-gray-700 hover:bg-gray-100">
+                    Cancel
+                </button>
+                <button id="confirmDelete" class="flex-1 btn btn-danger">
+                    Confirm Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 配置
+        const API_BASE_URL = 'http://120.27.131.74:3000/api/words'; // 替换为你的后端地址
+        let currentDeleteId = null; // 当前要删除的单词ID
+
+        // DOM 元素
+        const wordList = document.getElementById('wordList');
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+        const deleteModal = document.getElementById('deleteModal');
+        const addModal = document.getElementById('addModal');
+        const searchInput = document.getElementById('searchInput');
+        const addWordForm = document.getElementById('addWordForm');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 加载单词列表
+            loadWords();
+            
+            // 绑定事件
+            document.getElementById('retryButton').addEventListener('click', loadWords);
+            document.getElementById('emptyAddButton').addEventListener('click', openAddModal);
+            document.getElementById('addButton').addEventListener('click', openAddModal);
+            document.getElementById('cancelDelete').addEventListener('click', closeDeleteModal);
+            document.getElementById('confirmDelete').addEventListener('click', executeDelete);
+            document.getElementById('cancelAdd').addEventListener('click', closeAddModal);
+            searchInput.addEventListener('input', debounce(handleSearch, 300));
+            addWordForm.addEventListener('submit', handleAddWord);
+        });
+
+        // 加载单词列表
+        async function loadWords(searchTerm = '') {
+            // 显示加载状态
+            showLoading();
+            
+            try {
+                // 构建请求URL（支持搜索）
+                let url = API_BASE_URL;
+                if (searchTerm) {
+                    url += `?search=${encodeURIComponent(searchTerm)}`;
+                }
+                
+                // 请求数据
+                const response = await axios.get(url);
+                const words = response.data;
+                
+                // 渲染单词列表
+                if (words.length === 0) {
+                    showEmptyState();
+                } else {
+                    renderWordList(words);
+                    showWordList();
+                }
+            } catch (error) {
+                console.error('Error loading words:', error);
+                showErrorState();
+            }
+        }
+
+        // 渲染单词列表
+        function renderWordList(words) {
+            wordList.innerHTML = ''; // 清空现有内容
+            
+            // 添加每个单词卡片
+            words.forEach(word => {
+                const wordCard = document.createElement('div');
+                wordCard.className = 'word-card';
+                wordCard.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="text-xl font-bold text-gray-800">${escapeHtml(word.word)}</h3>
+                                ${word.category ? `<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">${escapeHtml(word.category)}</span>` : ''}
+                            </div>
+                            <p class="text-gray-600 mb-3">${escapeHtml(word.definition)}</p>
+                            <div class="text-sm text-gray-500">
+                                <span><i class="fa fa-calendar-o mr-1"></i> Added: ${new Date(word.createdAt).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 self-start">
+                            <button 
+                                class="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                title="Edit word"
+                                onclick="editWord('${word._id}')"
+                            >
+                                <i class="fa fa-pencil"></i>
+                            </button>
+                            <button 
+                                class="p-2 text-danger hover:bg-danger/10 rounded-lg transition-colors"
+                                title="Delete word"
+                                onclick="openDeleteModal('${word._id}')"
+                            >
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                wordList.appendChild(wordCard);
+            });
+        }
+
+        // 添加单词表单处理
+        async function handleAddWord(e) {
+            e.preventDefault(); // 阻止表单默认提交
+            
+            // 获取表单值
+            const word = document.getElementById('wordInput').value.trim();
+            const definition = document.getElementById('definitionInput').value.trim();
+            const category = document.getElementById('categoryInput').value.trim();
+            
+            // 简单验证
+            let isValid = true;
+            
+            if (!word) {
+                showError('wordError', 'Please enter a word');
+                isValid = false;
+            } else {
+                hideError('wordError');
+            }
+            
+            if (!definition) {
+                showError('definitionError', 'Please enter a definition');
+                isValid = false;
+            } else {
+                hideError('definitionError');
+            }
+            
+            if (!isValid) return;
+            
+            try {
+                // 发送添加请求
+                await axios.post(API_BASE_URL, {
+                    word,
+                    definition,
+                    category: category || '',
+                    createdAt: new Date().toISOString()
+                });
+                
+                // 关闭模态框
+                closeAddModal();
+                
+                // 重置表单
+                addWordForm.reset();
+                
+                // 重新加载单词列表
+                loadWords(searchInput.value.trim());
+                
+                // 显示成功提示
+                showToast('Word added successfully!', 'success');
+            } catch (error) {
+                console.error('Error adding word:', error);
+                showToast('Failed to add word. Please try again.', 'error');
+            }
+        }
+
+        // 打开删除确认模态框
+        function openDeleteModal(wordId) {
+            currentDeleteId = wordId;
+            // 显示模态框（带动画）
+            deleteModal.classList.remove('pointer-events-none');
+            deleteModal.classList.add('opacity-100');
+            deleteModal.querySelector('div').classList.remove('scale-95');
+            deleteModal.querySelector('div').classList.add('scale-100');
+        }
+
+        // 关闭删除模态框
+        function closeDeleteModal() {
+            currentDeleteId = null;
+            // 隐藏模态框（带动画）
+            deleteModal.classList.add('pointer-events-none');
+            deleteModal.classList.remove('opacity-100');
+            deleteModal.querySelector('div').classList.remove('scale-100');
+            deleteModal.querySelector('div').classList.add('scale-95');
+        }
+
+        // 执行删除操作
+        async function executeDelete() {
+            if (!currentDeleteId) return;
+
+            try {
+                // 发送删除请求
+                await axios.delete(`${API_BASE_URL}/${currentDeleteId}`);
+                
+                // 关闭模态框
+                closeDeleteModal();
+                
+                // 重新加载单词列表
+                loadWords(searchInput.value.trim());
+                
+                // 显示成功提示
+                showToast('Word deleted successfully!', 'success');
+            } catch (error) {
+                console.error('Error deleting word:', error);
+                showToast('Failed to delete word. Please try again.', 'error');
+            }
+        }
+
+        // 打开添加单词模态框
+        function openAddModal() {
+            // 显示模态框（带动画）
+            addModal.classList.remove('pointer-events-none');
+            addModal.classList.add('opacity-100');
+            addModal.querySelector('div').classList.remove('scale-95');
+            addModal.querySelector('div').classList.add('scale-100');
+            
+            // 聚焦第一个输入框
+            setTimeout(() => {
+                document.getElementById('wordInput').focus();
+            }, 300);
+        }
+
+        // 关闭添加单词模态框
+        function closeAddModal() {
+            // 隐藏错误提示
+            hideError('wordError');
+            hideError('definitionError');
+            
+            // 隐藏模态框（带动画）
+            addModal.classList.add('pointer-events-none');
+            addModal.classList.remove('opacity-100');
+            addModal.querySelector('div').classList.remove('scale-100');
+            addModal.querySelector('div').classList.add('scale-95');
+        }
+
+        // 搜索功能
+        function handleSearch() {
+            const searchTerm = searchInput.value.trim();
+            loadWords(searchTerm);
+        }
+
+        // 编辑单词（占位，实际项目中实现）
+        function editWord(wordId) {
+            showToast(`Edit functionality for word ${wordId} would open here`, 'info');
+        }
+
+        // 显示提示消息
+        function showToast(message, type = 'info') {
+            // 创建提示元素
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform translate-y-10 opacity-0 transition-all duration-300`;
+            
+            // 设置样式和内容
+            if (type === 'success') {
+                toast.classList.add('bg-green-500', 'text-white');
+                toast.innerHTML = `<i class="fa fa-check-circle mr-2"></i>${message}`;
+            } else if (type === 'error') {
+                toast.classList.add('bg-red-500', 'text-white');
+                toast.innerHTML = `<i class="fa fa-times-circle mr-2"></i>${message}`;
+            } else {
+                toast.classList.add('bg-blue-500', 'text-white');
+                toast.innerHTML = `<i class="fa fa-info-circle mr-2"></i>${message}`;
+            }
+
+            // 添加到页面
+            document.body.appendChild(toast);
+            
+            // 显示动画
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 显示错误提示
+        function showError(elementId, message) {
+            const errorElement = document.getElementById(elementId);
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        }
+
+        // 隐藏错误提示
+        function hideError(elementId) {
+            const errorElement = document.getElementById(elementId);
+            errorElement.classList.add('hidden');
+        }
+
+        // 状态显示控制
+        function showLoading() {
+            loadingState.classList.remove('hidden');
+            wordList.classList.add('hidden');
+            emptyState.classList.add('hidden');
+            errorState.classList.add('hidden');
+        }
+
+        function showWordList() {
+            loadingState.classList.add('hidden');
+            wordList.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            errorState.classList.add('hidden');
+        }
+
+        function showEmptyState() {
+            loadingState.classList.add('hidden');
+            wordList.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            errorState.classList.add('hidden');
+        }
+
+        function showErrorState() {
+            loadingState.classList.add('hidden');
+            wordList.classList.add('hidden');
+            emptyState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+        }
+
+        // 工具函数：防抖动
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // 工具函数：HTML转义（防止XSS）
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 暴露函数到全局
+        window.openDeleteModal = openDeleteModal;
+        window.editWord = editWord;
+    </script>
+</body>
+</html>
+
